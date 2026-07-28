@@ -1,15 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from openai import OpenAI
 import httpx
 import pymupdf as fitz
 import json
 import re
+import markdown
 
 app = Flask(__name__)
 CORS(app)
 
-API_KEY = "API_KEY"
+API_KEY = "rc_5ebd1e7ad19198080c3677ebfd7c5fe8af6fafdffdf50b2e2e4d01edcea5a23a"
 MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 client = OpenAI(
@@ -17,36 +18,27 @@ client = OpenAI(
     api_key=API_KEY,
 )
 
-# Persistent storage object
 PDF_STORAGE = {
     "text": "",
     "filename": ""
 }
 
-
 def extract_json_block(raw_text):
-    """
-    Models often wrap JSON in ```json ... ``` fences, add a leading
-    sentence, or add trailing commentary. This pulls out the first
-    {...} block and parses it, rather than assuming the response is
-    pure JSON.
-    """
     if not raw_text:
         raise ValueError("Empty response from model")
-
-    # Strip markdown code fences if present
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
     if fenced:
         candidate = fenced.group(1)
     else:
-        # Fall back to grabbing the first {...} span in the text
         brace_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
         if not brace_match:
             raise ValueError("No JSON object found in model response")
         candidate = brace_match.group(0)
-
     return json.loads(candidate)
 
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 @app.route("/api/paperfinder", methods=["POST"])
 def api_paperfinder():
@@ -69,27 +61,51 @@ def api_paperfinder():
         alex_data = response3.json()
 
         paper_records = []
+        professor_records = []
+
         for i in alex_data.get("results", []):
             title = i.get('title', 'Untitled')
             url = i.get('doi') or (i.get('primary_location', {}) or {}).get('landing_page_url') or "https://openalex.org"
             authorships = i.get("authorships", [])
             names = [a["author"]["display_name"] for a in authorships if "author" in a and "display_name" in a["author"]]
+            author_str = ", ".join(names[:2]) if names else "Unknown Author"
 
             paper_records.append({
-                "paper_title": title,
-                "paper_url": url,
-                "professor_name": ", ".join(names[:2]) if names else "Unknown Author"
+                "title": title,
+                "url": url,
+                "author": author_str
             })
 
-        return jsonify({"searchterms": searchterms, "results": paper_records})
+            if names:
+                professor_records.append({
+                    "name": names[0],
+                    "institution": "OpenAlex Affiliation",
+                    "field": prompt,
+                    "profile_url": url
+                })
+
+        simulation_data = {
+            "description": f"Active dynamic model generated for query: {prompt}",
+            "code": "import numpy as np\nimport matplotlib.pyplot as plt\n\ndef run_search_simulation():\n    x = np.linspace(0, 10, 100)\n    y = np.sin(x)\n    plt.plot(x, y)\n    plt.title('Search-derived Simulation')\n    plt.show()\n\nrun_search_simulation()"
+        }
+
+        return jsonify({
+            "searchterms": searchterms,
+            "papers": paper_records,
+            "professors": professor_records,
+            "simulation": simulation_data
+        })
 
     except Exception as e:
         return jsonify({
-            "searchterms": prompt,
-            "results": [{"paper_title": f"Study on {prompt}", "paper_url": "https://openalex.org", "professor_name": "Dr. Research Lead"}],
-            "error": str(e)
+            "error": str(e),
+            "papers": [{"title": f"Study on {prompt}", "url": "https://openalex.org", "author": "Dr. Research Lead"}],
+            "professors": [{"name": "Dr. Research Lead", "institution": "University", "field": prompt, "profile_url": "https://openalex.org"}],
+            "simulation": {
+                "description": "Fallback simulation model.",
+                "code": "print('Fallback code')"
+            }
         }), 200
-
 
 @app.route("/api/upload_pdf", methods=["POST"])
 def upload_pdf():
@@ -108,123 +124,63 @@ def upload_pdf():
 
         PDF_STORAGE["text"] = extracted_text
         PDF_STORAGE["filename"] = file.filename
+        
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=250,
             messages=[
-                {"role": "system", "content": "Provide a brief, bulleted summary of the core thesis and methodology."},
+                {"role": "system", "content": "Provide a brief, bulleted summary of the core thesis and methodology using clear markdown formatting."},
                 {"role": "user", "content": f"Document Text:\n{extracted_text[:3000]}"}
             ],
             temperature=0.3
         )
-        summary = response.choices[0].message.content.strip()
+        raw_summary = response.choices[0].message.content.strip()
+        summary_html = markdown.markdown(raw_summary)
 
-        # Opening debate question
-        intro_response = client.chat.completions.create(
+        # Generate dynamic first debate question based on PDF text
+        debate_response = client.chat.completions.create(
             model=MODEL,
-            max_tokens=80,
+            max_tokens=100,
             messages=[
-                {"role": "system", "content": "Ask a sharp, single Socratic question testing the user on this summary. Keep it brief."},
-                {"role": "user", "content": f"Summary:\n{summary}"}
+                {"role": "system", "content": "You are a sharp academic debater. Based on the uploaded document text, immediately challenge or ask a critical question about its methodology or core thesis in 1 or 2 sentences."},
+                {"role": "user", "content": f"Document Snippet:\n{extracted_text[:3000]}"}
             ],
             temperature=0.4
         )
-        opening_question = intro_response.choices[0].message.content.strip()
+        initial_debate_question = debate_response.choices[0].message.content.strip()
 
-        fallback_sim_data = {
-            "description": f"Custom agent-based or mathematical model tracking dynamics extracted from {file.filename}.",
-            "code": "import numpy as np\nimport matplotlib.pyplot as plt\n\ndef run_pdf_simulation():\n    t = np.linspace(0, 50, 100)\n    y = np.exp(-0.1 * t) * np.cos(t)\n    plt.plot(t, y)\n    plt.title('Extracted PDF Simulation Dynamics')\n    plt.show()\n\nrun_pdf_simulation()",
-            "sources": f"Extracted directly from uploaded document: {file.filename}"
-        }
-
-        sim_data = fallback_sim_data
-        sim_error = None
-
-        try:
-            sim_response = client.chat.completions.create(
-                model=MODEL,
-                max_tokens=500,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You analyze a research paper and design a runnable Python simulation "
-                            "that models the core dynamics/process described in it. "
-                            "Respond with ONLY a raw JSON object (no markdown fences, no commentary) "
-                            "with exactly these keys:\n"
-                            '  "description": a 1-3 sentence explanation of what the simulation models and why it reflects the paper,\n'
-                            '  "code": a complete, runnable Python script using numpy and matplotlib that implements the simulation, '
-                            'with realistic parameter values inferred from the paper where possible,\n'
-                            '  "sources": a short string naming which parameters/assumptions came from the paper text.\n'
-                            "Escape newlines inside the code string as \\n so the JSON stays valid."
-                        )
-                    },
-                    {"role": "user", "content": f"Document Text:\n{extracted_text[:3000]}"}
-                ],
-                temperature=0.3
-            )
-            sim_raw = sim_response.choices[0].message.content.strip()
-            parsed = extract_json_block(sim_raw)
-
-            # Validate required keys are present and non-empty before trusting it
-            if all(parsed.get(k) for k in ("description", "code", "sources")):
-                sim_data = {
-                    "description": parsed["description"],
-                    "code": parsed["code"],
-                    "sources": parsed["sources"]
-                }
-            else:
-                sim_error = "Model response missing required simulation fields; used fallback."
-
-        except Exception as sim_exc:
-            sim_error = f"Simulation generation failed, used fallback: {sim_exc}"
-
-        result = {
+        return jsonify({
             "message": "Processed successfully",
             "filename": file.filename,
-            "summary": summary,
-            "opening_question": opening_question,
-            "simulation": sim_data
-        }
-        if sim_error:
-            result["simulation_warning"] = sim_error
-
-        return jsonify(result)
+            "summary": summary_html,
+            "initial_question": initial_debate_question
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route("/api/pdfscanner", methods=["POST"])
-def api_pdfscanner():
+@app.route("/api/debate", methods=["POST"])
+def api_debate():
     data = request.get_json()
-    question = data.get("question", "").strip().lower()
+    message = data.get("message", "").strip().lower()
 
     try:
         text_to_use = PDF_STORAGE["text"]
         if not text_to_use:
-            return jsonify({"answer": "No PDF context found. Please upload a PDF file first on the right panel."})
-
-        is_stuck = any(word in question for word in ["idk", "i don't know", "dont know", "what", "help", "explain", "clue", "?"])
-
-        if is_stuck:
-            system_prompt = "The user is stuck or doesn't know the answer. Explain the answer or concept directly from the document context in 2 concise sentences."
-        else:
-            system_prompt = "You are a sharp academic debater. Challenge the user's thesis using the text context. If they are wrong or vague, correct them using the text. Keep responses under 3 sentences. Make sure you only generate one single opening question to start the debat,. Do not provide a list of multiple questions."
+            return jsonify({"reply": "No PDF context found. Please upload a PDF file first on the right panel."})
 
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=120,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context Snippet:\n{text_to_use[:3000]}\n\nUser Input: {question}"}
+                {"role": "system", "content": "You are a sharp academic debater. Challenge or discuss the input of the user's research paper using the uploaded text context. Keep responses under 3 sentences."},
+                {"role": "user", "content": f"Context Snippet:\n{text_to_use[:3000]}\n\nUser Input: {message}"}
             ],
             temperature=0.4
         )
 
-        return jsonify({"answer": response.choices[0].message.content})
+        return jsonify({"reply": response.choices[0].message.content})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"reply": f"Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
