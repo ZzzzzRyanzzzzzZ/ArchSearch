@@ -106,11 +106,8 @@ def upload_pdf():
         for i, page in enumerate(doc):
             extracted_text += f"\n--- Page {i+1} ---\n" + page.get_text()
 
-        # Save to persistent storage structure
         PDF_STORAGE["text"] = extracted_text
         PDF_STORAGE["filename"] = file.filename
-
-        # Summary generation with optimized tokens
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=250,
@@ -134,8 +131,6 @@ def upload_pdf():
         )
         opening_question = intro_response.choices[0].message.content.strip()
 
-        # --- Simulation generation ---
-        # Fallback used ONLY if the model call fails or returns unparsable JSON
         fallback_sim_data = {
             "description": f"Custom agent-based or mathematical model tracking dynamics extracted from {file.filename}.",
             "code": "import numpy as np\nimport matplotlib.pyplot as plt\n\ndef run_pdf_simulation():\n    t = np.linspace(0, 50, 100)\n    y = np.exp(-0.1 * t) * np.cos(t)\n    plt.plot(t, y)\n    plt.title('Extracted PDF Simulation Dynamics')\n    plt.show()\n\nrun_pdf_simulation()",
