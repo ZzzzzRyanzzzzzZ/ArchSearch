@@ -10,9 +10,10 @@ ArchSearch is an advanced academic research tool that can find papers and profes
 
 ## To get started:
 1. Clone/download repository.
-2. In workflow.py, add your api key in "API_KEY. "
-3. Run your cmd in the folder of the scripts.
-4. Type in your cmd python -m workflow.py for the backend to run.
-5. Go to your frontend (index), and click on it or open up localhost:5000.
-6. If localhost does not work for you, you can click on the html file inside templates which would open it up.
+2. Download the libraries in the requirement.txt or "$ pip install -r requirements.txt"
+3. In workflow.py, add your api key in "API_KEY. "
+4. Run your cmd in the folder of the scripts.
+5. Type in your cmd python -m workflow.py for the backend to run.
+6. Go to your frontend (index), and click on it or open up localhost:5000.
+7. If localhost does not work for you, you can click on the html file inside templates which would open it up.
 
