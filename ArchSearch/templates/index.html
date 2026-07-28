@@ -454,6 +454,15 @@
             overflow-y: auto;
         }
 
+        .summary-box ul {
+            margin: 0 0 0 15px;
+            padding: 0;
+        }
+
+        .summary-box p {
+            margin: 0 0 8px 0;
+        }
+
         .sim-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -916,7 +925,7 @@ if __name__ == "__main__":
             const res = await fetch(`${BACKEND_URL}/api/paperfinder`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ query: query })
+                body: JSON.stringify({ topic: query })
             });
             const data = await res.json();
             
@@ -990,17 +999,18 @@ if __name__ == "__main__":
         document.getElementById('summaryContainer').innerHTML = "<span style='color:var(--text-muted);'>Processing PDF and generating AI summary...</span>";
 
         try {
-            const res = await fetch(`${BACKEND_URL}/api/uploadpdf`, {
+            const res = await fetch(`${BACKEND_URL}/api/upload_pdf`, {
                 method: 'POST',
                 body: formData
             });
             const data = await res.json();
 
             document.getElementById('statPdfStatus').innerText = "Ready";
-            document.getElementById('summaryContainer').innerHTML = `<p style="margin:0; font-size:13px; line-height:1.4;">${data.summary || "Summary generated successfully."}</p>`;
+            document.getElementById('summaryContainer').innerHTML = data.summary || "Summary generated successfully.";
 
             const chatStream = document.getElementById('chatStream');
-            chatStream.innerHTML += `<div class="chat-bubble ai">I've ingested "${selectedFile.name}". Based on the findings, what are your thoughts on their primary methodology?</div>`;
+            const openingQuestion = data.initial_question || `I've ingested "${selectedFile.name}". Let's discuss its methodology—what are your thoughts?`;
+            chatStream.innerHTML += `<div class="chat-bubble ai">${openingQuestion}</div>`;
             chatStream.scrollTop = chatStream.scrollHeight;
 
         } catch (err) {
