@@ -8,7 +8,7 @@ ArchSearch is an advanced academic research tool that can find papers and profes
 - Simulation Studio - Creates computational models and python simulation code based on the literature that has been uploaded in the pdf uploader and the parameter bounds.
 - Reliability & Confidence Scoring - It gives you an overall score on papers for their methodological rigor, automated checks, and auto-generated APA citations.
 
-To get started:
+## To get started:
 Clone/download repository.
 In workflow.py, add your api key in "API_KEY"
 Run your cmd in the folder of the scripts.
