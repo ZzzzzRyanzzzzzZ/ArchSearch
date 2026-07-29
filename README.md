@@ -17,3 +17,4 @@ ArchSearch is an advanced academic research tool that can find papers and profes
 6. Go to your frontend (index), and click on it or open up localhost:5000.
 7. If localhost does not work for you, you can click on the html file inside templates which would open it up.
 
+# How this works:
