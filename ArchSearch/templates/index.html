@@ -352,6 +352,18 @@
             color: var(--text-muted);
         }
 
+        .card-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            width: fit-content;
+        }
+        .badge-green { background: #e6f4ea; color: #137333; }
+        .badge-yellow { background: #fef7e0; color: #b06000; }
+        .badge-red { background: #fce8e6; color: #c5221f; }
+
         .action-link-btn {
             align-self: flex-start;
             background-color: var(--primary);
@@ -758,7 +770,7 @@
                                 <div class="item-card">
                                     <h4>Papers will appear here</h4>
                                     <p>Link to paper</p>
-                                    <a href="https://openalex.org" target="_blank" class="action-link-btn">Open Paper</a>
+                                    <a href="[https://openalex.org](https://openalex.org)" target="_blank" class="action-link-btn">Open Paper</a>
                                 </div>
                             </div>
                         </div>
@@ -882,8 +894,8 @@ if __name__ == "__main__":
     function openPaperModal(title, url, author) {
         document.getElementById('modalPaperTitle').innerText = title;
         document.getElementById('modalAuthorText').innerText = `Author/Source: ${author || 'OpenAlex Reference'}`;
-        document.getElementById('modalExternalLink').href = url || 'https://openalex.org';
-        document.getElementById('modalCitation').innerText = `${author || 'Author, A.'} (2026). ${title}. OpenAlex Reference. Retrieved from ${url || 'https://openalex.org'}`;
+        document.getElementById('modalExternalLink').href = url || '[https://openalex.org](https://openalex.org)';
+        document.getElementById('modalCitation').innerText = `${author || 'Author, A.'} (2026). ${title}. OpenAlex Reference. Retrieved from ${url || '[https://openalex.org](https://openalex.org)'}`;
         
         const flagsList = document.getElementById('modalFlagsList');
         const scoreVal = document.getElementById('modalScoreVal');
@@ -938,10 +950,16 @@ if __name__ == "__main__":
                     const card = document.createElement('div');
                     card.className = 'item-card';
                     card.onclick = () => openPaperModal(paper.title, paper.url, paper.author);
+                    
+                    let badgeClass = "badge-green";
+                    if (paper.badge_color === "yellow") badgeClass = "badge-yellow";
+                    if (paper.badge_color === "red") badgeClass = "badge-red";
+
                     card.innerHTML = `
+                        <span class="card-badge ${badgeClass}">${paper.score || "80% - Rigorous"}</span>
                         <h4>${paper.title}</h4>
                         <p>${paper.author || 'OpenAlex Repository'}</p>
-                        <a href="${paper.url || 'https://openalex.org'}" target="_blank" class="action-link-btn" onclick="event.stopPropagation()">Open Paper</a>
+                        <a href="${paper.url || '[https://openalex.org](https://openalex.org)'}" target="_blank" class="action-link-btn" onclick="event.stopPropagation()">Open Paper</a>
                     `;
                     papersContainer.appendChild(card);
                 });
