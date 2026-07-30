@@ -14,7 +14,7 @@ Reliability & Confidence Scoring - It gives you an overall score on papers for t
 
 # Tech Stack
 Backend: Flask, Flask-CORS
-LLM: Qwen2.5-7B-Instruct, served through Featherless AI
+LLM: Qwen2.5-7B-Instruct, served through **Featherless AI**
 Paper/professor data: OpenAlex API
 PDF parsing: PyMuPDF
 Frontend: Single HTML file (vanilla JS, no framework)
