@@ -32,6 +32,7 @@ An OpenAlex API key (optional for basic use, but recommended to avoid rate limit
 5. Type in your cmd python -m workflow.py for the backend to run.
 6. Go to your frontend (index), and click on it or open up localhost:5000.
 7. If localhost does not work for you, you can click on the html file inside templates which would open it up.
+8. You can also open up the website: https://arch-search-for-blue-print.vercel.app
 
 ## How this works:
 - Flask connects the frontend to the backend, and every request goes through it before hitting any AI or external API.
