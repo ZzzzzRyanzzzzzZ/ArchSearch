@@ -11,20 +11,25 @@ import markdown
 app = Flask(__name__)
 CORS(app)
 
+# Configuration & client initialization
 API_KEY = os.environ.get("FEATHERLESS_API_KEY")
 MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
+# Initialize Featherless OpenAI-compatible client
 client = OpenAI(
     base_url="https://api.featherless.ai/v1",
     api_key=API_KEY,
 ) if API_KEY else None
 
+# In-memory storage for uploaded PDF text context
 PDF_STORAGE = {
     "text": "",
     "filename": ""
 }
 
+# Utility functions
 def extract_json_block(raw_text):
+    """Safely extracts and parses JSON blocks from LLM raw text responses."""
     if not raw_text:
         raise ValueError("Empty response from model")
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
@@ -37,12 +42,21 @@ def extract_json_block(raw_text):
         candidate = brace_match.group(0)
     return json.loads(candidate)
 
+# Web UI route
 @app.route("/")
 def home():
+    """Renders the main frontend dashboard."""
     return render_template("index.html")
 
+# Paper finder & simulation agent (Agent 1 & 2)
 @app.route("/api/paperfinder", methods=["POST"])
 def api_paperfinder():
+    """
+    Handles research topic inputs by orchestrating:
+    1. Search Term Optimizer Agent (Featherless LLM)
+    2. OpenAlex Academic Literature Fetcher
+    3. Python Computational Simulation Code Generator Agent
+    """
     data = request.get_json()
     prompt = data.get("topic", "")
 
@@ -50,6 +64,7 @@ def api_paperfinder():
         if client is None:
             raise RuntimeError("FEATHERLESS_API_KEY is not configured")
 
+        # Search term optimizer agent
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=30,
@@ -60,6 +75,7 @@ def api_paperfinder():
         )
         searchterms = response.choices[0].message.content.strip()
 
+        # OpenAlex database integration
         alex_api_key = os.environ.get("OPENALEX_API_KEY")
         openalex_params = {"search": searchterms, "per_page": 5}
         if alex_api_key:
@@ -77,6 +93,7 @@ def api_paperfinder():
             names = [a["author"]["display_name"] for a in authorships if "author" in a and "display_name" in a["author"]]
             author_str = ", ".join(names[:2]) if names else "Unknown Author"
 
+            # Mock scoring heuristic for academic rigor check
             hash_val = len(title) % 3
             if hash_val == 0:
                 score_text = "91% - High Rigor"
@@ -104,6 +121,7 @@ def api_paperfinder():
                     "profile_url": url
                 })
 
+        # Simulation code generator agent
         sim_prompt_response = client.chat.completions.create(
             model=MODEL,
             max_tokens=400,
@@ -130,18 +148,26 @@ def api_paperfinder():
         })
 
     except Exception as e:
+        # Fallback payload if API limits or errors occur
         return jsonify({
             "error": str(e),
-            "papers": [{"title": f"Study on {prompt}", "url": "https://openalex.org", "author": "Dr. Research Lead", "score": "85% - High Rigor", "badge_color": "green"}],
-            "professors": [{"name": "Dr. Research Lead", "institution": "University", "field": prompt, "profile_url": "https://openalex.org"}],
+            "papers": [{"title": f"Study on {prompt}", "url": "[https://openalex.org](https://openalex.org)", "author": "Dr. Research Lead", "score": "85% - High Rigor", "badge_color": "green"}],
+            "professors": [{"name": "Dr. Research Lead", "institution": "University", "field": prompt, "profile_url": "[https://openalex.org](https://openalex.org)"}],
             "simulation": {
                 "description": "Fallback simulation model.",
                 "code": "import numpy as np\nimport matplotlib.pyplot as plt\n\n# Fallback simulation script\nx = np.linspace(0, 10, 100)\nplt.plot(x, np.cos(x))\nplt.show()"
             }
         }), 200
 
+# PDF summarizer & ingestion agent (Agent 3)
 @app.route("/api/upload_pdf", methods=["POST"])
 def upload_pdf():
+    """
+    Handles PDF document uploads by executing:
+    1. PyMuPDF (fitz) text parser
+    2. Summarizer Agent (extracting core thesis and methodology)
+    3. Critical Debater Agent (initiating an initial challenge question)
+    """
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -153,14 +179,17 @@ def upload_pdf():
         if client is None:
             raise RuntimeError("FEATHERLESS_API_KEY is not configured")
 
+        # Parse text content from uploaded PDF
         doc = fitz.open(stream=file.read(), filetype="pdf")
         extracted_text = ""
         for i, page in enumerate(doc):
             extracted_text += f"\n--- Page {i+1} ---\n" + page.get_text()
 
+        # Cache text globally in memory for follow-up chats
         PDF_STORAGE["text"] = extracted_text
         PDF_STORAGE["filename"] = file.filename
         
+        # Summarizer agent
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=250,
@@ -173,6 +202,7 @@ def upload_pdf():
         raw_summary = response.choices[0].message.content.strip()
         summary_html = markdown.markdown(raw_summary)
 
+        # Critical debater agent (starter question)
         debate_response = client.chat.completions.create(
             model=MODEL,
             max_tokens=100,
@@ -193,8 +223,13 @@ def upload_pdf():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Interactive academic debater agent (Agent 4)
 @app.route("/api/debate", methods=["POST"])
 def api_debate():
+    """
+    Maintains a critical conversational loop with the user 
+    about the uploaded PDF paper content context.
+    """
     data = request.get_json()
     message = data.get("message", "").strip().lower()
 
@@ -206,6 +241,7 @@ def api_debate():
         if not text_to_use:
             return jsonify({"reply": "No PDF context found. Please upload a PDF file first on the right panel."})
 
+        # Interactive debater agent
         response = client.chat.completions.create(
             model=MODEL,
             max_tokens=120,
@@ -220,5 +256,6 @@ def api_debate():
     except Exception as e:
         return jsonify({"reply": f"Error: {str(e)}"}), 500
 
+# Application entrypoint
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
